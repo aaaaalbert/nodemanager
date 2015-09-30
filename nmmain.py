@@ -285,14 +285,13 @@ def should_start_waitable_thread(threadid, threadname):
 
   # OK, the thread appears to have run "long enough" now. See if we find 
   # `threadname` among the list of all living Thread objects.
-  for thread in threading.enumerate():
-    if threadname in str(thread):
-      # Yes, our thread is running now. If it has been running for a 
-      # reasonable time, let's reduce the wait time.
-      if thread_runtime > reasonableruntime:
-        thread_waittime[threadid] = max(minwaittime, thread_waittime[threadid]-decreaseamount)
-      # Anyway, we definitley need not (re)start this thread.
-      return False
+  if is_thread_started(threadname):
+    # Yes, our thread is running now. If it has been running for a 
+    # reasonable time, let's reduce the wait time.
+    if thread_runtime > reasonableruntime:
+      thread_waittime[threadid] = max(minwaittime, thread_waittime[threadid]-decreaseamount)
+    # Anyway, we definitley need not (re)start this thread.
+    return False
   else:
     # Our `threadname` was not among the Thread objects. Our caller 
     # needs to start it.
@@ -487,11 +486,11 @@ def start_accepter():
 
 
 
-
-# has the thread started?
-def is_worker_thread_started():
+def is_thread_started(threadname):
+  """Check if `threadname` is in the list of active Thread objects;
+  return True if so, and False otherwise."""
   for thread in threading.enumerate():
-    if 'WorkerThread' in str(thread):
+    if threadname in str(thread):
       return True
   else:
     return False
@@ -499,7 +498,7 @@ def is_worker_thread_started():
 
 
 def start_worker_thread(sleeptime):
-  if not is_worker_thread_started():
+  if not is_thread_started("WorkerThread"):
     # start the WorkerThread and set it to a daemon.   I think the daemon 
     # setting is unnecessary since I'll clobber on restart...
     workerthread = nmconnectionmanager.WorkerThread(sleeptime)
@@ -517,15 +516,6 @@ def start_advert_thread(vesseldict, myname, nodekey):
     advertthread.setDaemon(True)
     advertthread.start()
     started_waitable_thread('advert')
-  
-
-
-def is_status_thread_started():
-  for thread in threading.enumerate():
-    if 'Status Monitoring Thread' in str(thread):
-      return True
-  else:
-    return False
 
 
 
@@ -702,7 +692,7 @@ def main():
       servicelogger.log("[WARN]:AccepterThread requires restart.")
       node_reset_config['reset_accepter'] = True
  
-    if not is_worker_thread_started():
+    if not is_thread_started("WorkerThread"):
       servicelogger.log("[WARN]:WorkerThread requires restart.")
       start_worker_thread(configuration['pollfrequency'])
 
