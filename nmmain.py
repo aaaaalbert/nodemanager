@@ -3,10 +3,6 @@ Author: Justin Cappos
   Modified by Brent Couvrette to make use of circular logging.
   Modified by Eric Kimbrel to add NAT traversal
 
-
-Module: Node Manager main program.   It initializes the other modules and
-        doesn't do much else.
-
 Start date: September 3rd, 2008
 
 This is the node manager for Seattle.   It ensures that sandboxes are correctly
@@ -17,18 +13,22 @@ that order).
 
 The node manager has several different threads.
 
-   An advertisement thread (nmadverise) that inserts entries into OpenDHT so 
-that users and owners can locate their vessels.
-   A status thread (nmstatusmonitor) that checks the status of vessels and 
-updates statuses in the table used by the API.
-   An accepter (nmconnectionmanager) listens for connections (preventing
-simple attacks) and puts them into a list.
-   A worker thread (used in the nmconnectionmanager, nmrequesthandler, nmAPI)
-handles enacting the appropriate actions given requests from the user.
-   The main thread initializes the other threads and monitors them to ensure
-they do not terminate prematurely (restarting them as necessary).
-
+* An advertisement thread (nmadvertise) inserts entries 
+  (owner/user public key: node IP address) into Seattle's advertise 
+  services so that users and owners can locate their vessels.
+* A status thread (nmstatusmonitor) checks the status of vessels and 
+  updates statuses in the table used by the API.
+* An accepter (nmconnectionmanager) listens for connections (preventing
+  simple attacks) and puts them into a list.
+* A worker thread (used in the nmconnectionmanager, nmrequesthandler, nmAPI)
+  handles enacting the appropriate actions given requests from the user.
+* The main thread initializes the other threads and monitors them to ensure
+  they do not terminate prematurely (restarting them as necessary).
 """
+
+# Nodemanager version information / identification
+version = "0.2-alpha-20140714-1434"
+
 
 # Let's make sure the version of python is supported
 import checkpythonversion
@@ -49,10 +49,8 @@ from repyportability import *
 add_dy_support(locals())
 
 
-
 # needed to log OS type / Python version
 import platform
-
 
 
 # Armon: Prevent all warnings
@@ -63,14 +61,11 @@ warnings.simplefilter("ignore")
 
 import time
 
+# Used for the advertise, status, accepter, and worker threads
 import threading
-
 import nmadvertise
-
 import nmstatusmonitor
-# Needed for use of the status monitor thread:
 import nmAPI
-
 import nmconnectionmanager
 
 # need to initialize the name, key and version (for when we return information
@@ -78,9 +73,10 @@ import nmconnectionmanager
 # can update / read it.
 import nmrequesthandler
 
+# For reading in the nodemanager config
 import persist
 
-# for getruntime...
+# For getruntime and ostype
 import nonportable
 
 # for harshexit
@@ -106,6 +102,8 @@ dy_import_module_symbols("sha.r2py")
 dy_import_module_symbols("advertise.r2py")
 dy_import_module_symbols("sockettimeout.r2py")
 
+
+
 # Overwrite log() so that Affix debug messages end up in the nodemanager's 
 # log file (nodemanager.old or .new in the service vessel directory)
 def log(*args):
@@ -114,7 +112,7 @@ def log(*args):
     chunks.append(str(arg))
   logstring = " ".join(chunks)
 
-  # servicelogger.log will end a trailing newline to the string,
+  # servicelogger.log will add a trailing newline to the string,
   # remove the existing one (if any).
   if logstring.endswith("\n"):
     servicelogger.log(logstring[:-1])
@@ -133,6 +131,8 @@ warnings.simplefilter('ignore')
 import sha    # Required for the code safety check
 warnings.resetwarnings()
 
+
+
 # One problem we need to tackle is should we wait to restart a failed service
 # or should we constantly restart it.   For advertisement and status threads, 
 # I've chosen to wait before restarting...   For worker and accepter, I think
@@ -141,48 +141,58 @@ warnings.resetwarnings()
 # these variables help us to track when we've started and whether or not we
 # should restart
 
-# the last time the thread was started
+# Store the runtime of the nodemanager when a thread was started last.
+# Format: {thread id: start time}
 thread_starttime = {}
 
-# the time I should wait
+# thread_waittime is the time to wait before checking a thread's 
+# liveliness against the actual list of active threads.
+# Format: {thread id: wait time}.
+# 
+# Within the waittime, the thread check in should_restart_waitable_thread 
+# always asserts that the thread does not yet need to be (re)started; 
+# every check further increases the waittime (from minwaittime up to 
+# maxwaittime) by a constant factor (wait_exponent).
+#
+# If the thread is eventually found in the list of active threads, 
+# and it has been running for a reasonable amount of time 
+# (reasonableruntime), the waittime is gradually reduced again 
+# by a constant amount (decreaseamount), down to minwaittime.
+# This makes it that in case a restart is required sometime later, the 
+# new thread instance will see less of a waittime before an actual 
+# liveliness check is performed.
 thread_waittime = {}
 
-# never wait more than 5 minutes
 maxwaittime = 300.0
-
-# or less than 2 seconds
 minwaittime = 2.0
-
-# multiply by 1.5 each time...
 wait_exponent = 1.5
-
-# and start to decrease only after a reasonable run time...
 reasonableruntime = 30
-
-# and drop by
 decreaseamount = .5
 
 
-# log a liveness message after this many iterations of the main loop
+# Global variable to store the accepter thread
+accepter_thread = None
+
+
+# Log a liveness message after this many iterations of the main loop
 LOG_AFTER_THIS_MANY_ITERATIONS = 600  # every 10 minutes
 
+
+# Our settings, to be updated from nodeman.cfg
 # BUG: what if the data on disk is corrupt?   How do I recover?   What is the
 # "right thing"?   I could run nminit again...   Is this the "right thing"?
-
-version = "0.2-alpha-20140714-1434"
-
-# Our settings
 configuration = {}
 
-# Lock and condition to determine if the accepter thread has started
-accepter_state = {'lock':createlock(),'started':False}
 
-# whether or not to use the natlayer, this option is passed in via command line
-# --nat
+# Lock and condition to determine if the accepter thread has started
+accepter_state = {'lock': createlock(), 'started': False}
+
+
 # If TEST_NM is true, then the nodemanager won't worry about another nmmain
 # running already.
 FOREGROUND = False
 TEST_NM = False
+
 
 # Dict to hold up-to-date nodename and boolean flags to track when to reset
 # advertisement and accepter threads (IP mobility)
@@ -200,55 +210,125 @@ node_reset_config = {
 DEBUG_MODE = False
 
 
-# Initializes emulcomm with all of the network restriction information
-# Takes configuration, which the the dictionary stored in nodeman.cfg
+
 def initialize_ip_interface_restrictions(configuration):
-  # Armon: Check if networking restrictions are enabled, appropriately generate the list of usable IP's
-  # If any of our expected entries are missing, assume that restrictions are not enabled
-  if 'networkrestrictions' in configuration and 'nm_restricted' in configuration['networkrestrictions'] \
-    and configuration['networkrestrictions']['nm_restricted'] and 'nm_user_preference' in configuration['networkrestrictions']:
+  """Initializes emulcomm with network restriction information."""
+  # Armon: If networking restrictions are enabled, appropriately 
+  # generate the list of usable IP's.
+  # If any of our expected entries are missing, assume that 
+  # restrictions are not enabled.
+  if ('networkrestrictions' in configuration and 
+      'nm_restricted' in configuration['networkrestrictions'] and 
+      configuration['networkrestrictions']['nm_restricted'] and 
+      'nm_user_preference' in configuration['networkrestrictions']):
     # Setup emulcomm to generate an IP list for us, setup the flags
     emulcomm.user_ip_interface_preferences = True
     
     # Add the specified IPs/Interfaces
     emulcomm.user_specified_ip_interface_list = configuration['networkrestrictions']['nm_user_preference']
 
-# has the thread started?
+
+
 def should_start_waitable_thread(threadid, threadname):
-  # first time!   Let's init!
+  """
+  <Purpose>
+    Determine if a thread (identified by its ID and name) should be 
+    started, or if we think it is running already. There are two 
+    indications for finding the running status of a thread:
+    Its `threadid` should exist as key in the `thread_starttime` and 
+    `thread_waittime` dicts (i.e. our bookkeeping in this function), 
+    and its `threadname`, set when the thread was `__init__`'ed, is 
+    found in the list of Thread objects per `threading.enumerate()`.
+
+  <Arguments>
+    threadid: A shorthand identifier for a thread. E.g., "advert", "status".
+    threadname: The Pyhton thread's name, as set in the respective 
+      implementation of the Thread class, e.g. nmadvertise.advertthread.
+
+  <Exceptions>
+    None.
+
+  <Side Effects>
+    For any threads that we think have not been started, the thread status 
+    dicts are modified.
+    When asked about the advert thread in particular, the node_reset_config 
+    dict is modified to turn off the "reset needed" flag.
+
+  <Returns>
+    True if we think the thread at question should be started by our caller.
+    False if we don't think the thread should be started.
+  """
   if threadid not in thread_starttime:
+    # The threadid missing from the starttime dict indicates the thread 
+    # isn't running yet. Init the thread's starttime and waittime entries.
+    # Note that we initialize the starttime to 0.0 just so that this 
+    # threadid exists as a key in the dict; the actual starttime 
+    # is set later by our caller after they have called the actual 
+    # `thread.start()` method. (See `start_advert_thread` for example.)
     thread_waittime[threadid] = minwaittime
     thread_starttime[threadid] = 0.0
 
-  # If asking about advert thread and node_reset_config specifies to reset it,
-  # then return True
-  if threadid == 'advert' and node_reset_config['reset_advert']:
-    # Before returning, turn off the reset flag
+  # If asking about advert thread and node_reset_config specifies to reset 
+  # it, clear the reset_advert flag and then tell our caller to start the 
+  # advert thread.
+  if threadid == 'advert' and node_reset_config['reset_advert'] is True:
     node_reset_config['reset_advert'] = False
     return True
-  
-  # If it has been started, and the elapsed time is too short, always return
-  # False to say it shouldn't be restarted
-  if thread_starttime[threadid] and nonportable.getruntime() - thread_starttime[threadid] < thread_waittime[threadid]:
+
+  # Don't bother to check the actual list of running threads unless 
+  # the thread has already had its starttime updated, and has been 
+  # running for more than its prescribed waittime.
+  # Just return False to say it shouldn't be restarted just yet.
+  thread_runtime = nonportable.getruntime() - thread_starttime[threadid] 
+  if thread_starttime[threadid] and thread_runtime < thread_waittime[threadid]:
     return False
-    
+
+  # OK, the thread appears to have run "long enough" now. See if we find 
+  # `threadname` among the list of all living Thread objects.
   for thread in threading.enumerate():
     if threadname in str(thread):
-      # running now.   If it's run for a reasonable time, let's reduce the 
-      # wait time...
-      if nonportable.getruntime() - thread_starttime[threadid] > reasonableruntime:
+      # Yes, our thread is running now. If it has been running for a 
+      # reasonable time, let's reduce the wait time.
+      if thread_runtime > reasonableruntime:
         thread_waittime[threadid] = max(minwaittime, thread_waittime[threadid]-decreaseamount)
+      # Anyway, we definitley need not (re)start this thread.
       return False
   else:
+    # Our `threadname` was not among the Thread objects. Our caller 
+    # needs to start it.
     return True
 
-# this is called when the thread is started...
+
+
 def started_waitable_thread(threadid):
+  """
+  <Purpose>
+    Update a thread's status information in the `thread_starttime` and 
+    `thread_waittime` dicts. This should be done after the thread's 
+    `start()` method has been called, so that `should_start_waitable_thread` 
+    can obtain current status info.
+
+  <Arguments>
+    threadid: A shorthand identifier for a thread. E.g., "advert", "status".
+
+  <Exceptions>
+    None.
+
+  <Side Effects>
+    Updates thread status info dicts.
+
+  <Returns>
+    None.
+  """
+  # Set the thread starttime, so as to indicate that the actual 
+  # `thread.start()` method has been called by our caller.
   thread_starttime[threadid] = nonportable.getruntime()
+
+  # Also increase the waittime if we happen to check for this thread's 
+  # liveliness again very soon.
   thread_waittime[threadid] = min(maxwaittime, thread_waittime[threadid] ** wait_exponent)
 
-  
-accepter_thread = None
+
 
 # Set the accepter thread
 def set_accepter(accepter):
@@ -259,6 +339,8 @@ def set_accepter(accepter):
   if DEBUG_MODE:
     servicelogger.log("[DEBUG] Accepter Thread has been set...")
   accepter_state['lock'].release()
+
+
   
 # Has the accepter thread started?
 def is_accepter_started():
@@ -325,11 +407,9 @@ def start_accepter():
 
   # do this until we get the accepter started...
   while True:
-
     if not node_reset_config['reset_accepter'] and is_accepter_started():
       # we're done, return the name!
       return myname_port
-    
     else:
       # If we came here because a reset was initiated, kill the old 
       # accepter thread server socket before starting a new one.
@@ -341,7 +421,6 @@ def start_accepter():
         # No problem -- this means nothing will be in the way of the new 
         # serversocket.
         pass
-
 
       # Use getmyip() to find the IP address the nodemanager should 
       # listen on for incoming connections. This will work correctly 
@@ -405,9 +484,6 @@ def start_accepter():
 
     # check infrequently
     time.sleep(configuration['pollfrequency'])
-  
-
-
 
 
 
@@ -423,7 +499,6 @@ def is_worker_thread_started():
 
 
 def start_worker_thread(sleeptime):
-
   if not is_worker_thread_started():
     # start the WorkerThread and set it to a daemon.   I think the daemon 
     # setting is unnecessary since I'll clobber on restart...
@@ -432,17 +507,8 @@ def start_worker_thread(sleeptime):
     workerthread.start()
 
 
-# has the thread started?
-def is_advert_thread_started():
-  for thread in threading.enumerate():
-    if 'Advertisement Thread' in str(thread):
-      return True
-  else:
-    return False
-
 
 def start_advert_thread(vesseldict, myname, nodekey):
-
   if should_start_waitable_thread('advert', 'Advertisement Thread'):
     # start the AdvertThread and set it to a daemon.   I think the daemon 
     # setting is unnecessary since I'll clobber on restart...
@@ -462,9 +528,9 @@ def is_status_thread_started():
     return False
 
 
-def start_status_thread(vesseldict, sleeptime):
 
-  if should_start_waitable_thread('status','Status Monitoring Thread'):
+def start_status_thread(vesseldict, sleeptime):
+  if should_start_waitable_thread('status', 'Status Monitoring Thread'):
     # start the StatusThread and set it to a daemon.   I think the daemon 
     # setting is unnecessary since I'll clobber on restart...
     statusthread = nmstatusmonitor.statusthread(vesseldict, sleeptime, nmAPI)
@@ -481,7 +547,6 @@ def main():
   if not FOREGROUND:
     # Background ourselves.
     daemon.daemonize()
-
 
   # Check if we are running in testmode.
   if TEST_NM:
@@ -506,8 +571,8 @@ def main():
       pass
     else:
       if gotlock:
-        servicelogger.log("[ERROR]:Another node manager process (pid: " + str(gotlock) + 
-                        ") is running")
+        servicelogger.log("[ERROR]:Another node manager process (pid: " + 
+            str(gotlock) + ") is running")
       else:
         servicelogger.log("[ERROR]:Another node manager process is running")
       return
@@ -517,9 +582,9 @@ def main():
 
   # Feature add for #1031: Log information about the system in the nm log...
   servicelogger.log('[INFO]:platform.python_version(): "' + 
-    str(platform.python_version())+'"')
+      str(platform.python_version())+'"')
   servicelogger.log('[INFO]:platform.platform(): "' + 
-    str(platform.platform())+'"')
+      str(platform.platform())+'"')
 
   # uname on Android only yields 'Linux', let's be more specific.
   try:
@@ -534,12 +599,9 @@ def main():
   # BUG: Do this better?   Is this the right way to engineer this?
   configuration = persist.restore_object("nodeman.cfg")
   
-  
   # Armon: initialize the network restrictions
   initialize_ip_interface_restrictions(configuration)
-  
-  
-  
+
   # ZACK BOKA: For Linux and Darwin systems, check to make sure that the new
   #            seattle crontab entry has been installed in the crontab.
   #            Do this here because the "nodeman.cfg" needs to have been read
@@ -563,12 +625,9 @@ def main():
             configuration['crontab_updated_for_2009_installer'] = True
             persist.commit_object(configuration,"nodeman.cfg")
 
-      except Exception,e:
-        exception_traceback_string = traceback.format_exc()
-        servicelogger.log("[ERROR]: The following error occured when " \
-                            + "modifying the crontab for the new 2009 " \
-                            + "seattle crontab entry: " \
-                            + exception_traceback_string)
+      except Exception, e:
+        servicelogger.log("[ERROR]: Error modifying the crontab for the "
+            "new 2009 Seattle crontab entry: " + traceback.format_exc())
   
 
 
@@ -653,13 +712,11 @@ def main():
 
     if should_start_waitable_thread('status', 'Status Monitoring Thread'):
       servicelogger.log("[WARN]:StatusMonitoringThread requires restart.")
-      start_status_thread(vesseldict,configuration['pollfrequency'])
+      start_status_thread(vesseldict, configuration['pollfrequency'])
 
     if not TEST_NM and not runonce.stillhaveprocesslock("seattlenodemanager"):
       servicelogger.log("[ERROR]:The node manager lost the process lock...")
       harshexit.harshexit(55)
-
-
 
     # Check for IP address changes.
     # When using Affix, the NamingAndResolverAffix takes over this.
@@ -683,8 +740,8 @@ def main():
 
       # If ip has changed, then restart the advertisement and accepter threads.
       if current_ip != myip:
-        servicelogger.log('[WARN]:Node IP has changed, it is ' + 
-          str(current_ip) + ' now (was ' + str(myip) + ').')
+        servicelogger.log('[WARN]:Node IP has changed from ' + str(myip) +
+          ' to ' + str(current_ip) + '.')
         myip = current_ip
 
         # Restart the accepter thread and update nodename in node_reset_config
@@ -709,8 +766,6 @@ def main():
     times_through_the_loop += 1
     if times_through_the_loop % LOG_AFTER_THIS_MANY_ITERATIONS == 0:
       servicelogger.log("[INFO]: node manager is alive...")
-      
-
 
 
 
@@ -727,15 +782,14 @@ def parse_arguments():
 
   # Add the --foreground option.
   parser.add_option('--foreground', dest='foreground',
-                    action='store_true', default=False,
-                    help="Run the nodemanager in foreground " +
-                         "instead of daemonizing it.")
+      action='store_true', default=False,
+      help="Run the nodemanager in foreground instead of daemonizing it.")
 
 
   # Add the --test-mode option.
   parser.add_option('--test-mode', dest='test_mode',
-                    action='store_true', default=False,
-                    help="Run the nodemanager in test mode.")
+      action='store_true', default=False,
+      help="Run the nodemanager in test mode.")
                     
   # Parse the argumetns.
   options, args = parser.parse_args()
@@ -772,10 +826,11 @@ if __name__ == '__main__':
   # Armon: Add some logging in case there is an uncaught exception
   try:
     main()
-  except Exception,e:
+  except Exception, e:
     # If the servicelogger is not yet initialized, this will not be logged.
     servicelogger.log_last_exception()
 
     # Since the main thread has died, this is a fatal exception,
     # so we need to forcefully exit
     harshexit.harshexit(15)
+
