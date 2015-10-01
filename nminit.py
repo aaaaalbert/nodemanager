@@ -19,7 +19,7 @@ _context = locals()
 add_dy_support(_context)
 
 # need to generate a public key
-dy_import_module_symbols('rsa.r2py')
+rsa = dy_import_module('rsa.r2py')
 
 # need randomfloat...
 import random
@@ -46,7 +46,7 @@ publickeys = []
 num_guests = 4
 
 for i in range(num_guests):
-  publickey, privatekey = rsa_gen_pubpriv_keys(keylen)
+  publickey, privatekey = rsa.rsa_gen_pubpriv_keys(keylen)
   publickeys.append(publickey)
   # The unit tests need access to these keys
   publickey_file = 'guest' + str(i) + '.publickey'
@@ -63,8 +63,8 @@ for i in range(num_guests):
     except FileNotFoundError:
       pass
 
-  rsa_publickey_to_file(publickey, publickey_file)
-  rsa_privatekey_to_file(privatekey, privatekey_file)
+  rsa.rsa_publickey_to_file(publickey, publickey_file)
+  rsa.rsa_privatekey_to_file(privatekey, privatekey_file)
 
 ( guest0pubkey,
   guest1pubkey,
@@ -295,7 +295,7 @@ def initialize_state():
   configuration['ports'] = [<nodemanager_port>, 2888, 9625, 10348, 39303, 48126, 52862, 57344, 64310]
 
   print "Generating key..."
-  keys = rsa_gen_pubpriv_keys(100)
+  keys = rsa.rsa_gen_pubpriv_keys(100)
   configuration['publickey'] = keys[0]
   configuration['privatekey'] = keys[1]
   configuration['service_vessel'] = 'v2'

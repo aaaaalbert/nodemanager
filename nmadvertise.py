@@ -14,7 +14,7 @@ _context = locals()
 add_dy_support(_context)
 
 # needed to convert keys to strings
-dy_import_module_symbols('rsa.r2py')
+rsa = dy_import_module('rsa.r2py')
 
 # Comment out following line by Danny Y. Huang. Potentially unsafe operation if it contains repy-specific symbols like mycontext.
 # include advertise.r2py
@@ -25,8 +25,8 @@ import threading
 import traceback
 import servicelogger
 
-dy_import_module_symbols('listops.r2py')
-dy_import_module_symbols("advertise.r2py")
+listops = dy_import_module('listops.r2py')
+advertise = dy_import_module("advertise.r2py")
 
 
 # Name of advertise thread
@@ -97,7 +97,7 @@ class advertthread(threading.Thread):
         advertisekeylist = []
 
         # JAC: advertise under the node's key
-        if rsa_publickey_to_string(self.nodekey) not in lastadvertisedict and self.nodekey not in advertisekeylist:
+        if rsa.rsa_publickey_to_string(self.nodekey) not in lastadvertisedict and self.nodekey not in advertisekeylist:
           advertisekeylist.append(self.nodekey)
 
 
@@ -113,25 +113,25 @@ class advertthread(threading.Thread):
           # if I advertise the vessel...
           if thisentry['advertise']:
             # add the owner key if not there already...
-            if rsa_publickey_to_string(thisentry['ownerkey']) not in lastadvertisedict and thisentry['ownerkey'] not in advertisekeylist:
+            if rsa.rsa_publickey_to_string(thisentry['ownerkey']) not in lastadvertisedict and thisentry['ownerkey'] not in advertisekeylist:
               advertisekeylist.append(thisentry['ownerkey'])
 
             # and all user keys if not there already
             for userkey in thisentry['userkeys']:
-              if rsa_publickey_to_string(userkey) not in lastadvertisedict and userkey not in advertisekeylist:
+              if rsa.rsa_publickey_to_string(userkey) not in lastadvertisedict and userkey not in advertisekeylist:
                 advertisekeylist.append(userkey)
 
 
         # there should be no dups.   
-        assert(advertisekeylist == listops_uniq(advertisekeylist))
+        assert(advertisekeylist == listops.listops_uniq(advertisekeylist))
 
         # now that I know who to announce to, send messages to annouce my IP and 
         # port to all keys I support
         for advertisekey in advertisekeylist:
           try:
-            advertise_announce(advertisekey, str(myname), adTTL)
+            advertise.advertise_announce(advertisekey, str(myname), adTTL)
             # mark when we advertise
-            lastadvertisedict[rsa_publickey_to_string(advertisekey)] = getruntime()
+            lastadvertisedict[rsa.rsa_publickey_to_string(advertisekey)] = getruntime()
          
             # If the announce succeeded, and node was offline, log info message
             # and switch it back to online mode.
@@ -144,7 +144,7 @@ class advertthread(threading.Thread):
               self.error_count = 0
               self.is_offline = False
           
-          except AdvertiseError, e:
+          except advertise.AdvertiseError, e:
             # If all announce requests failed, assume node has
             # gone offline, 
             if str(e) == "None of the advertise services could be contacted":

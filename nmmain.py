@@ -97,10 +97,16 @@ _context = locals()
 add_dy_support(_context)
 
 
-dy_import_module_symbols("rsa.r2py")
+rsa = dy_import_module("rsa.r2py")
+
+# XXX Can't do a proper module-level dy_import as we import Python's `sha` 
+# XXX later. (Whether that import is required is a different question.)
 dy_import_module_symbols("sha.r2py")
+
+# XXX advertise.r2py appears unused.
 dy_import_module_symbols("advertise.r2py")
-dy_import_module_symbols("sockettimeout.r2py")
+
+sockettimeout = dy_import_module("sockettimeout.r2py")
 
 
 
@@ -357,7 +363,7 @@ affix_enabled = True
 # Store the original Repy API calls.
 old_getmyip = getmyip
 old_listenforconnection = listenforconnection
-old_timeout_listenforconnection = timeout_listenforconnection
+old_timeout_listenforconnection = sockettimeout.timeout_listenforconnection
 
 
 def enable_affix(affix_string):
@@ -390,7 +396,7 @@ def enable_affix(affix_string):
   # Affix socket with timeout_server_socket.
   def new_timeout_listenforconnection(localip, localport, timeout):
     sockobj = nodemanager_affix.listenforconnection(localip, localport)
-    return timeout_server_socket(sockobj, timeout)
+    return sockettimeout.timeout_server_socket(sockobj, timeout)
 
   # Overload the two functionalities with Affix functionalities
   # that will be used later on.
@@ -624,7 +630,7 @@ def main():
   # Enable Affix and overload various Repy network API calls 
   # with Affix-enabled calls.
   # Use the node's publickey to generate a name for our node.
-  mypubkey = rsa_publickey_to_string(configuration['publickey']).replace(" ", "")
+  mypubkey = rsa.rsa_publickey_to_string(configuration['publickey']).replace(" ", "")
   affix_stack_name = sha_hexhash(mypubkey)
 
   enable_affix('(CoordinationAffix)(MakeMeHearAffix)(NamingAndResolverAffix,' + 

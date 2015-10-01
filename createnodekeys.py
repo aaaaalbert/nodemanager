@@ -15,7 +15,7 @@ _context = locals()
 add_dy_support(_context)
 
 # need to generate a public key
-dy_import_module_symbols('rsa.r2py')
+rsa = dy_import_module('rsa.r2py')
 
 
 import os
@@ -28,7 +28,7 @@ import persist
 # init the keys...
 # Zack Boka: Added the functionality of changing directories so the parent
 #            funciton would not have to worry about doing this.
-def initialize_keys(keybitsize,nodemanager_directory="."):
+def initialize_keys(keybitsize, nodemanager_directory="."):
   # nodemanager_directory: The directory in which the nodeman.cfg file is
   #                        located.
 
@@ -46,11 +46,11 @@ def initialize_keys(keybitsize,nodemanager_directory="."):
   os.chdir(nodemanager_directory)
 
 
-  keys = rsa_gen_pubpriv_keys(keybitsize)
+  keys = rsa.rsa_gen_pubpriv_keys(keybitsize)
   configuration['publickey'] = keys[0]
   configuration['privatekey'] = keys[1]
 
-  persist.commit_object(configuration,"nodeman.cfg")
+  persist.commit_object(configuration, "nodeman.cfg")
 
 
   os.chdir(curdir)

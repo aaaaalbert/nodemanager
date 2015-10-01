@@ -62,6 +62,7 @@ from repyportability import *
 _context = locals()
 add_dy_support(_context)
 
+# XXX Sockettimeout appears unused!?
 dy_import_module_symbols("sockettimeout.r2py")
 
 connectionlock = createlock()
