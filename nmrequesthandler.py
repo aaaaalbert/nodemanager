@@ -28,11 +28,11 @@ session = dy_import_module("session.r2py")
 # for using time_updatetime
 time = dy_import_module("time.r2py")
 
-# For using rsa key conversion
+# For using RSA key conversion
 rsa = dy_import_module("rsa.r2py")
 
 # the API for the node manager
-import nmAPI
+import nmapi
 
 # for socket.error
 import socket
@@ -58,7 +58,7 @@ def initialize(myip, publickey, version):
   # gets generic node information)
 
   # we return the node dict
-  return nmAPI.initialize(myip, publickey, version)
+  return nmapi.initialize(myip, publickey, version)
 
 
   
@@ -102,7 +102,7 @@ def handle_request(socketobj):
       retstring = process_API_call(fullrequest)
 
     # Bad parameters, signatures, etc.
-    except nmAPI.BadRequest,e:
+    except nmapi.BadRequest,e:
       session.session_sendmessage(socketobj, str(e)+"\nError")
       return
 
@@ -158,28 +158,29 @@ def handle_request(socketobj):
 
 # Calls that the node manager understands.   The key is the "call name"
 # the value is a tuple with number of args, protection, and the actual function
-API_dict = { \
-  'GetVessels': (0, 'Public', nmAPI.getvessels), \
-  'GetVesselResources': (1, 'Public', nmAPI.getvesselresources), \
-  'GetOffcutResources': (0, 'Public', nmAPI.getoffcutresources), \
-  'StartVessel': (2, 'User', nmAPI.startvessel), \
-  'StartVesselEx': (3, 'User', nmAPI.startvessel_ex), \
-  'StopVessel': (1, 'User', nmAPI.stopvessel), \
-  'AddFileToVessel': (3, 'User', nmAPI.addfiletovessel), \
-  'ListFilesInVessel': (1, 'User', nmAPI.listfilesinvessel), \
-  'RetrieveFileFromVessel': (2, 'User', nmAPI.retrievefilefromvessel), \
-  'DeleteFileInVessel': (2, 'User', nmAPI.deletefileinvessel), \
-  'ReadVesselLog': (1, 'User', nmAPI.readvessellog), \
-  'ResetVessel': (1, 'User', nmAPI.resetvessel), \
-  'ChangeOwner': (2, 'Owner', nmAPI.changeowner), \
-  'ChangeUsers': (2, 'Owner', nmAPI.changeusers), \
-  'ChangeOwnerInformation': (2, 'Owner', nmAPI.changeownerinformation), \
-  'ChangeAdvertise': (2, 'Owner', nmAPI.changeadvertise), \
-  'SplitVessel': (2, 'Owner', nmAPI.splitvessel), \
-  'JoinVessels': (2, 'Owner', nmAPI.joinvessels), \
-  # obsoleted 
-  # 'SetRestrictions': (2, 'Owner', nmAPI.setrestrictions) \
+API_dict = {
+    'GetVessels': (0, 'Public', nmapi.getvessels), 
+    'GetVesselResources': (1, 'Public', nmapi.getvesselresources), 
+    'GetOffcutResources': (0, 'Public', nmapi.getoffcutresources), 
+    'StartVessel': (2, 'User', nmapi.startvessel), 
+    'StartVesselEx': (3, 'User', nmapi.startvessel_ex), 
+    'StopVessel': (1, 'User', nmapi.stopvessel), 
+    'AddFileToVessel': (3, 'User', nmapi.addfiletovessel), 
+    'ListFilesInVessel': (1, 'User', nmapi.listfilesinvessel), 
+    'RetrieveFileFromVessel': (2, 'User', nmapi.retrievefilefromvessel), 
+    'DeleteFileInVessel': (2, 'User', nmapi.deletefileinvessel), 
+    'ReadVesselLog': (1, 'User', nmapi.readvessellog), 
+    'ResetVessel': (1, 'User', nmapi.resetvessel), 
+    'ChangeOwner': (2, 'Owner', nmapi.changeowner), 
+    'ChangeUsers': (2, 'Owner', nmapi.changeusers), 
+    'ChangeOwnerInformation': (2, 'Owner', nmapi.changeownerinformation), 
+    'ChangeAdvertise': (2, 'Owner', nmapi.changeadvertise), 
+    'SplitVessel': (2, 'Owner', nmapi.splitvessel), 
+    'JoinVessels': (2, 'Owner', nmapi.joinvessels), 
+    # obsoleted 
+    # 'SetRestrictions': (2, 'Owner', nmapi.setrestrictions) 
 }
+
 
 
 def process_API_call(fullrequest):
@@ -190,7 +191,7 @@ def process_API_call(fullrequest):
     servicelogger.log("Now handling call: " + callname)
 
   if callname not in API_dict:
-    raise nmAPI.BadRequest("Unknown Call")
+    raise nmapi.BadRequest("Unknown Call")
 
   # find the entry that describes this call...
   numberofargs, permissiontype, APIfunction = API_dict[callname]
@@ -201,11 +202,11 @@ def process_API_call(fullrequest):
   if permissiontype == 'Public':
     # There should be no signature, so this is the raw request...
     if len(fullrequest.split('|')) < numberofargs-1:
-      raise nmAPI.BadRequest("Not Enough Arguments")
+      raise nmapi.BadRequest("Not Enough Arguments")
 
     # If there are 3 args, we want to split at most 3 times (the first item is 
     # the callname)
-    callargs = fullrequest.split('|',numberofargs)
+    callargs = fullrequest.split('|', numberofargs)
     # return any output for the user...
     return APIfunction(*callargs[1:])
 
@@ -215,28 +216,28 @@ def process_API_call(fullrequest):
     
 
     # NOTE: the first argument *must* be the vessel name!!!!!!!!!!!
-    vesselname = requestdata.split('|',2)[1]
+    vesselname = requestdata.split('|', 2)[1]
 
-    if vesselname not in nmAPI.vesseldict:
-      raise nmAPI.BadRequest('Unknown Vessel')
+    if vesselname not in nmapi.vesseldict:
+      raise nmapi.BadRequest('Unknown Vessel')
 
     # I must have something to check...
     if permissiontype == 'Owner':
       # only the owner is allowed, so the list of keys is merely that key
-      allowedkeys = [ nmAPI.vesseldict[vesselname]['ownerkey'] ]
+      allowedkeys = [nmapi.vesseldict[vesselname]['ownerkey']]
     else:
       # the user keys are also allowed
-      allowedkeys = [ nmAPI.vesseldict[vesselname]['ownerkey'] ] + nmAPI.vesseldict[vesselname]['userkeys']
+      allowedkeys = [nmapi.vesseldict[vesselname]['ownerkey']] + nmapi.vesseldict[vesselname]['userkeys']
 
     # I need to pass the fullrequest in here...
-    ensure_is_correctly_signed(fullrequest, allowedkeys, nmAPI.vesseldict[vesselname]['oldmetadata'])
+    ensure_is_correctly_signed(fullrequest, allowedkeys, nmapi.vesseldict[vesselname]['oldmetadata'])
     
     # If there are 3 args, we want to split at most 3 times (the first item is 
     # the callname)
-    callargs = requestdata.split('|',numberofargs)
+    callargs = requestdata.split('|', numberofargs)
     
     #store the request signature as old metadata
-    nmAPI.vesseldict[vesselname]['oldmetadata'] = requestsignature
+    nmapi.vesseldict[vesselname]['oldmetadata'] = requestsignature
     
     # return any output for the user...
     return APIfunction(*callargs[1:])
@@ -258,23 +259,23 @@ def ensure_is_correctly_signed(fullrequest, allowedkeys, oldmetadata):
 
   # check if request is still valid and has not expired
   # this code has been added to resolve an issue where we are not checking of the request is expired in the case that there is no old metadata
-  thesigneddata, signature = fullrequest.rsplit('!',1)
-  junk, rawpublickey, junktimestamp, expiration, sequencedata, junkdestination = thesigneddata.rsplit('!',5)
+  thesigneddata, signature = fullrequest.rsplit('!', 1)
+  junk, rawpublickey, junktimestamp, expiration, sequencedata, junkdestination = thesigneddata.rsplit('!', 5)
   if not fastsigneddata.signeddata_iscurrent(float(expiration)):
-    raise nmAPI.BadRequest,"Bad Signature on '"+fullrequest+"'"
+    raise nmapi.BadRequest, "Bad Signature on '" + fullrequest + "'"
     
   
   # check if sequence id is equal to zero in the case that there is no data. 
   # This is intended to fix a previous issue where any value could be used as a sequence id when there was no old metadata (only 0 is valid in this case)
-  if (sequencedata!="None"):
-    junksequecename,sequenceno = sequencedata.rsplit(':',1)
+  if sequencedata != "None":
+    junksequecename, sequenceno = sequencedata.rsplit(':', 1)
     if not oldmetadata:
       if int(sequenceno) != 0:
-        raise nmAPI.BadRequest, "Illegal sequence id on '"+fullrequest+"'"
+        raise nmapi.BadRequest, "Illegal sequence id on '" + fullrequest + "'"
     
   # ensure it's correctly signed, if not report this and exit
   if not fastsigneddata.signeddata_issignedcorrectly(fullrequest):
-    raise nmAPI.BadRequest,"Bad Signature on '"+fullrequest+"'"
+    raise nmapi.BadRequest, "Bad Signature on '" + fullrequest + "'"
 
   request, requestsignature = fastsigneddata.signeddata_split_signature(fullrequest)
 
@@ -282,12 +283,12 @@ def ensure_is_correctly_signed(fullrequest, allowedkeys, oldmetadata):
 
   # If they care about the key, do they have a valid key?
   if allowedkeys and signingpublickey not in allowedkeys:
-    raise nmAPI.BadRequest('Insufficient Permissions')
+    raise nmapi.BadRequest('Insufficient Permissions')
 
   #bug fix: old metadata may be storing full requests, so we are using a crude way to check if the full request is stored, or if just the signature is
   metadata_is_fullrequest = False
-  if not(oldmetadata==None):
-    oldrawpublickey, oldrawtimestamp, oldrawexpiration, oldrawsequenceno, oldrawdestination, oldjunksignature = oldmetadata.rsplit('!',5)
+  if oldmetadata is not None:
+    oldrawpublickey, oldrawtimestamp, oldrawexpiration, oldrawsequenceno, oldrawdestination, oldjunksignature = oldmetadata.rsplit('!', 5)
     try:
       conversion_try = rsa.rsa_string_to_publickey(oldrawpublickey[1:])
     except ValueError:
@@ -303,7 +304,7 @@ def ensure_is_correctly_signed(fullrequest, allowedkeys, oldmetadata):
     
   if not shouldtrust:
     # let's tell them what is wrong.
-    raise nmAPI.BadRequest,"Signature problem: "+' '.join(reasons)
+    raise nmapi.BadRequest, "Signature problem: " + ' '.join(reasons)
   else:
     # We should trust...  All is well!
     return

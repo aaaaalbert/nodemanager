@@ -20,7 +20,7 @@ The node manager has several different threads.
   updates statuses in the table used by the API.
 * An accepter (nmconnectionmanager) listens for connections (preventing
   simple attacks) and puts them into a list.
-* A worker thread (used in the nmconnectionmanager, nmrequesthandler, nmAPI)
+* A worker thread (used in the nmconnectionmanager, nmrequesthandler, nmapi)
   handles enacting the appropriate actions given requests from the user.
 * The main thread initializes the other threads and monitors them to ensure
   they do not terminate prematurely (restarting them as necessary).
@@ -65,7 +65,7 @@ import time
 import threading
 import nmadvertise
 import nmstatusmonitor
-import nmAPI
+import nmapi
 import nmconnectionmanager
 
 # need to initialize the name, key and version (for when we return information
@@ -523,7 +523,7 @@ def start_status_thread(vesseldict, sleeptime):
   if should_start_waitable_thread('status', 'Status Monitoring Thread'):
     # start the StatusThread and set it to a daemon.   I think the daemon 
     # setting is unnecessary since I'll clobber on restart...
-    statusthread = nmstatusmonitor.statusthread(vesseldict, sleeptime, nmAPI)
+    statusthread = nmstatusmonitor.statusthread(vesseldict, sleeptime, nmapi)
     statusthread.setDaemon(True)
     statusthread.start()
     started_waitable_thread('status')

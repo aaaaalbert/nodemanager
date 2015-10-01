@@ -15,7 +15,7 @@ import nonportable
 
 # This allows us to access the NM configuration
 import persist
-import nmAPI
+import nmapi
 
 # needed to read and write resource files
 import resourcemanipulation
@@ -52,7 +52,7 @@ def handle_threading_error():
   servicelogger.log("[ERROR]:A Repy vessel has exited with ThreadErr status. Checking to determine next step")
 
   # Get all the names of the vessels
-  vesselnamelist = nmAPI.vesseldict.keys()
+  vesselnamelist = nmapi.vesseldict.keys()
   
   # read in all of the resource files so that we can look at and possibly 
   # manipulate them.
@@ -105,8 +105,9 @@ def handle_threading_error():
   for vesselname in vesselnamelist:
     try:
       # Stop each vessel, using our stoptuple
-      nmAPI.stopvessel(vesselname,stoptuple)
+      nmapi.stopvessel(vesselname, stoptuple)
     except Exception, exp:
       # Forge on, regardless of errors
-      servicelogger.log("[ERROR]:Failed to reset vessel (Handling ThreadErr). Exception: "+str(exp))
+      servicelogger.log("[ERROR]:Failed to reset vessel (Handling "
+          "ThreadErr). Exception: " + repr(exp))
       servicelogger.log_last_exception()

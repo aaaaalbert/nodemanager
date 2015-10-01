@@ -79,11 +79,11 @@ class statusthread(threading.Thread):
   # This is uses so that the error is only handled once
   threadErrSet = None
 
-  def __init__(self, statusdictionary, sleeptime, nmAPI):
+  def __init__(self, statusdictionary, sleeptime, nmapi):
     self.statusdict = statusdictionary
     self.sleeptime = sleeptime
     self.threadErrSet = set()
-    self.nmAPI = nmAPI
+    self.nmapi = nmapi
     threading.Thread.__init__(self,name = "Status Monitoring Thread")
 
   def run(self):
@@ -129,7 +129,7 @@ class statusthread(threading.Thread):
               self.threadErrSet.add(timestamp)
               
               # Call the error handling module
-              nmthreadingerror.handle_threading_error(self.nmAPI)
+              nmthreadingerror.handle_threading_error(self.nmapi)
           
           # The status has a timestamp in case the process is killed harshly and 
           # needs to be restarted.   This allows ordering of status reports
