@@ -498,7 +498,7 @@ def is_thread_started(threadname):
 
 
 def start_worker_thread(sleeptime):
-  if not is_thread_started("WorkerThread"):
+  if not is_thread_started(nmconnectionmanager.worker_thread_name):
     # start the WorkerThread and set it to a daemon.   I think the daemon 
     # setting is unnecessary since I'll clobber on restart...
     workerthread = nmconnectionmanager.WorkerThread(sleeptime)
@@ -508,7 +508,7 @@ def start_worker_thread(sleeptime):
 
 
 def start_advert_thread(vesseldict, myname, nodekey):
-  if should_start_waitable_thread('advert', 'Advertisement Thread'):
+  if should_start_waitable_thread('advert', nmadvertise.thread_name):
     # start the AdvertThread and set it to a daemon.   I think the daemon 
     # setting is unnecessary since I'll clobber on restart...
     advertthread = nmadvertise.advertthread(vesseldict, nodekey)
@@ -520,14 +520,14 @@ def start_advert_thread(vesseldict, myname, nodekey):
 
 
 def start_status_thread(vesseldict, sleeptime):
-  if should_start_waitable_thread('status', 'Status Monitoring Thread'):
+  if should_start_waitable_thread('status', nmstatusmonitor.thread_name):
     # start the StatusThread and set it to a daemon.   I think the daemon 
     # setting is unnecessary since I'll clobber on restart...
     statusthread = nmstatusmonitor.statusthread(vesseldict, sleeptime, nmapi)
     statusthread.setDaemon(True)
     statusthread.start()
     started_waitable_thread('status')
-  
+
 
 
 # lots of little things need to be initialized...   
@@ -689,19 +689,19 @@ def main():
     myname = node_reset_config['name']
 
     if not is_accepter_started():
-      servicelogger.log("[WARN]:AccepterThread requires restart.")
+      servicelogger.log("[WARN]:Accepter thread requires restart.")
       node_reset_config['reset_accepter'] = True
  
-    if not is_thread_started("WorkerThread"):
-      servicelogger.log("[WARN]:WorkerThread requires restart.")
+    if not is_thread_started(nmconnectionmanager.worker_thread_name):
+      servicelogger.log("[WARN]:Worker thread requires restart.")
       start_worker_thread(configuration['pollfrequency'])
 
-    if should_start_waitable_thread('advert', 'Advertisement Thread'):
-      servicelogger.log("[WARN]:AdvertThread requires restart.")
+    if should_start_waitable_thread('advert', nmadvertise.thread_name):
+      servicelogger.log("[WARN]:Advert thread requires restart.")
       start_advert_thread(vesseldict, myname, configuration['publickey'])
 
-    if should_start_waitable_thread('status', 'Status Monitoring Thread'):
-      servicelogger.log("[WARN]:StatusMonitoringThread requires restart.")
+    if should_start_waitable_thread('status', nmstatusmonitor.thread_name):
+      servicelogger.log("[WARN]:Status monitoring thread requires restart.")
       start_status_thread(vesseldict, configuration['pollfrequency'])
 
     if not TEST_NM and not runonce.stillhaveprocesslock("seattlenodemanager"):

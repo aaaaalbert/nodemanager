@@ -31,6 +31,9 @@ import servicelogger
 # ThreadErr status
 import nmthreadingerror
 
+# Name of status mon thread
+thread_name = "Status Monitoring Thread"
+
 # The amount of time we allow without an update before we declare a vessel 
 # dead...
 updatebound = 15
@@ -39,6 +42,7 @@ timestampdict = {}
 
 # I use this lock to prevent multiple checks of the status timestamp, etc.
 statuslock = threading.Lock()
+
 
 
 def update_status(statusdict, vesselname, status, timestamp):
@@ -84,7 +88,7 @@ class statusthread(threading.Thread):
     self.sleeptime = sleeptime
     self.threadErrSet = set()
     self.nmapi = nmapi
-    threading.Thread.__init__(self,name = "Status Monitoring Thread")
+    threading.Thread.__init__(self, name=thread_name)
 
   def run(self):
     try:

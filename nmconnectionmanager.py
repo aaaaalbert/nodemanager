@@ -39,6 +39,10 @@ list is empty and periodically look to see if a new element was added.
 # Need to have a separate threads for the worker and the accepter
 import threading
 
+# Names for our threads
+accepter_thread_name = "Accepter Thread"
+worker_thread_name = "Worker Thread"  
+
 # need to get connections, etc.
 import socket
 
@@ -61,7 +65,8 @@ add_dy_support(_context)
 dy_import_module_symbols("sockettimeout.r2py")
 
 connectionlock = createlock()
-  
+
+
 
 def connection_handler(IP, port, socketobject):
  
@@ -110,10 +115,10 @@ class AccepterThread(threading.Thread):
   serversocket = None
   
   def __init__(self, serversocket):
-    log("AccepterThread inits")
-    threading.Thread.__init__(self, name="AccepterThread")
+    log(accepter_thread_name + " inits")
+    threading.Thread.__init__(self, name=accepter_thread_name)
     self.serversocket = serversocket
-    log("AccepterThread inited.")
+    log(accepter_thread_name + " inited.")
   
   def run(self):
     # Run indefinitely.
@@ -127,7 +132,7 @@ class AccepterThread(threading.Thread):
       except SocketTimeoutError:
         sleep(0.5)
       except Exception, e:
-        servicelogger.log("FATAL error in AccepterThread: " + 
+        servicelogger.log("FATAL error in " + accepter_thread_name + ": " +
             traceback.format_exc())
         return
 
@@ -202,7 +207,7 @@ class WorkerThread(threading.Thread):
   sleeptime = None
   def __init__(self,st):
     self.sleeptime = st
-    threading.Thread.__init__(self, name="WorkerThread")
+    threading.Thread.__init__(self, name=worker_thread_name)
 
   def run(self):
     try: 

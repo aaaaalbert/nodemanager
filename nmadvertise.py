@@ -29,6 +29,9 @@ dy_import_module_symbols('listops.r2py')
 dy_import_module_symbols("advertise.r2py")
 
 
+# Name of advertise thread
+thread_name = "Advertisement Thread"
+
 # The frequency of updating the advertisements
 adfrequency = 300
 
@@ -42,6 +45,7 @@ adsleepfrequency = 5
 # Log after 'N' advertise errors 
 error_skip_count = 100
 
+# nmmain passes the current node name in using this variable
 myname = None
 
 # This dictionary holds the last time an address was advertised.   This is used
@@ -77,7 +81,7 @@ class advertthread(threading.Thread):
     self.nodekey = nodekey
     self.error_count = 0
     self.is_offline = False
-    threading.Thread.__init__(self, name = "Advertisement Thread")
+    threading.Thread.__init__(self, name=thread_name)
 
 
   def run(self):
