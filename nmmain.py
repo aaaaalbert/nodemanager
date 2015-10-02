@@ -684,22 +684,7 @@ def main():
     # Check for IP address changes.
     # When using Affix, the NamingAndResolverAffix takes over this.
     if not affix_enabled:
-      current_ip = None
-      while True:
-        try:
-          current_ip = emulcomm.getmyip()
-        except Exception, e:
-          # If we aren't connected to the internet, emulcomm.getmyip() raises this:
-          if len(e.args) >= 1 and e.args[0] == "Cannot detect a connection to the Internet.":
-            # So we try again.
-            pass
-          else:
-            # It wasn't emulcomm.getmyip()'s exception. re-raise.
-            raise
-        else:
-          # We succeeded in getting our external IP. Leave the loop.
-          break
-      time.sleep(0.1)
+      current_ip = find_my_ip_address()
 
       # If ip has changed, then restart the advertisement and accepter threads.
       if current_ip != myip:
