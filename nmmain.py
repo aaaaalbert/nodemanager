@@ -573,6 +573,17 @@ def log_seattle_version_and_platform_info():
 
 
 
+def find_my_ip_address():
+  """Query `emulcomm.getmyip` for my IP address. Return if we succeed, retry 
+  on RepyV2 `InternetConnectivityError`s, raise everything else."""
+  while True:
+    try:
+      return emulcomm.getmyip()
+    except emulcomm.InternetConnectivityError:
+      # Try again in a bit.
+      sleep(1)
+
+
 
 # lots of little things need to be initialized...   
 def main():
@@ -621,25 +632,11 @@ def main():
   enable_affix('(CoordinationAffix)(MakeMeHearAffix)(NamingAndResolverAffix,' + 
       affix_stack_name + ')')
 
-  # get the external IP address...
-  myip = None
-  while True:
-    try:
-      # Try to find our external IP.
-      myip = emulcomm.getmyip()
-    except Exception, e: # Replace with InternetConnectivityError ?
-      # If we aren't connected to the internet, emulcomm.getmyip() raises this:
-      if len(e.args) >= 1 and e.args[0] == "Cannot detect a connection to the Internet.":
-        # So we try again.
-        pass
-      else:
-        # It wasn't emulcomm.getmyip()'s exception. re-raise.
-        raise
-    else:
-      # We succeeded in getting our external IP. Leave the loop.
-      break
-    time.sleep(0.1)
+  # Get the node IP address
+  myip = find_my_ip_address()
 
+  # Set up the address/pubkeys/vessels config we will advertise and 
+  # status-monitor
   vesseldict = nmrequesthandler.initialize(myip, configuration['publickey'], version)
 
   # Start accepter, store current node name.
