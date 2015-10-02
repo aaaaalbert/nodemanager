@@ -126,10 +126,6 @@ def log(*args):
     servicelogger.log(logstring)
 
 
-affix_stack = dy_import_module("affix_stack.r2py")
-advertisepipe = dy_import_module("advertisepipe.r2py")
-
-
 
 # JAC: Fix for #1000: This needs to be after ALL repyhhelper calls to prevent 
 # sha from being replaced
@@ -353,57 +349,6 @@ def is_accepter_started():
   result = accepter_thread is not None and accepter_thread.isAlive()
   accepter_state['lock'].release()
   return result
-
-
-
-# Flags for whether to use Affix
-affix_enabled = True
-
-
-# Store the original Repy API calls.
-old_getmyip = getmyip
-old_listenforconnection = listenforconnection
-old_timeout_listenforconnection = sockettimeout.timeout_listenforconnection
-
-
-def enable_affix(affix_string):
-  """
-  <Purpose>
-    Overload the listenforconnection() and getmyip() API call 
-    if Affix is enabled.
-
-  <Arguments>
-    None
-
-  <SideEffects>
-    Original listenforconnection() and getmyip() gets overwritten.
-
-  <Exceptions>
-    None
-  """
-  # If Affix is not enabled, we just return.
-  if not affix_enabled:
-    return
-
-  global timeout_listenforconnection
-  global getmyip
-
-  # Create my affix object and overwrite the listenforconnection
-  # and the getmyip call.
-  nodemanager_affix = affix_stack.AffixStack(affix_string)
-
-  # Create a new timeout_listenforconnection that wraps a normal
-  # Affix socket with timeout_server_socket.
-  def new_timeout_listenforconnection(localip, localport, timeout):
-    sockobj = nodemanager_affix.listenforconnection(localip, localport)
-    return sockettimeout.timeout_server_socket(sockobj, timeout)
-
-  # Overload the two functionalities with Affix functionalities
-  # that will be used later on.
-  timeout_listenforconnection = new_timeout_listenforconnection
-  getmyip = nodemanager_affix.getmyip
-
-  servicelogger.log('[INFO] Nodemanager now using Affix string: ' + affix_string)
 
 
 
