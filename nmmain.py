@@ -642,25 +642,19 @@ def main():
 
   vesseldict = nmrequesthandler.initialize(myip, configuration['publickey'], version)
 
-  # Start accepter, store current node name
+  # Start accepter, store current node name.
+  # We do this here only for this thread, because if it is not running 
+  # already when we reach the following big `while` loop, a reset and re-
+  # init procedure will be triggered via node_reset_config['reset_accepter'], 
+  # and we might end up spinning resetting/reinitting.
+  # (The other threads (worker, advert, status) will be spawned from 
+  # within the loop with no side effects.)
   node_reset_config['name'] = start_accepter()
   
-  #send our advertised name to the log
+  # Send our advertised name to the log
   servicelogger.log('myname = ' + node_reset_config['name'])
 
-  # Start worker thread...
-  start_worker_thread(configuration['pollfrequency'])
-
-  # Start advert thread...
-  start_advert_thread(vesseldict, node_reset_config['name'], configuration['publickey'])
-
-  # Start status thread...
-  start_status_thread(vesseldict, configuration['pollfrequency'])
-
-
-  # we should be all set up now.   
-
-  servicelogger.log("[INFO]:Started")
+  servicelogger.log("[INFO]:Starting")
 
   # I will count my iterations through the loop so that I can log a message
   # periodically.   This makes it clear I am alive.
