@@ -536,6 +536,20 @@ def start_status_thread(vesseldict, sleeptime):
 
 
 
+def write_out_nmmain_pid_for_test_mode():
+  """If in test mode, write out our PID to a file so that our caller 
+  knows how to stop us when the tests are over."""
+  nodemanager_pid = os.getpid()
+  servicelogger.log("[INFO]: Running nodemanager in test mode with PID " + str(nodemanager_pid))
+  nodeman_pid_file = open(os.path.join(os.getcwd(), 'nodemanager.pid'), 'w')
+  
+  try:
+    nodeman_pid_file.write(str(nodemanager_pid))
+  finally:
+    nodeman_pid_file.close()
+
+
+
 # lots of little things need to be initialized...   
 def main():
   global configuration
@@ -544,22 +558,13 @@ def main():
     # Background ourselves.
     daemon.daemonize()
 
-  # Check if we are running in testmode.
   if TEST_NM:
-    nodemanager_pid = os.getpid()
-    servicelogger.log("[INFO]: Running nodemanager in test mode on port 1224, "+
-                      "pid %s." % str(nodemanager_pid))
-    nodeman_pid_file = open(os.path.join(os.getcwd(), 'nodemanager.pid'), 'w')
-    
-    # Write out the pid of the nodemanager process that we started to a file.
-    # This is only done if the nodemanager was started in test mode.
-    try:
-      nodeman_pid_file.write(str(nodemanager_pid))
-    finally:
-      nodeman_pid_file.close()
-
+    # In test mode, store our PID in a file for our caller
+    write_out_nmmain_pid_for_test_mode()
   else:
-    # ensure that only one instance is running at a time...
+    # Ensure that only one nodemanager instance is running at a time.
+    # Depending on the lock state and OS/platform, `gotlock` may be 
+    # an integer PID, True, or False.
     gotlock = runonce.getprocesslock("seattlenodemanager")
 
     if gotlock == True:
