@@ -550,6 +550,30 @@ def write_out_nmmain_pid_for_test_mode():
 
 
 
+def log_seattle_version_and_platform_info():
+  """Log information about the version of Seattle, and what 
+  OS and platform we are running on."""
+
+  servicelogger.log('[INFO]: This is Seattle release "' + version + "'") 
+
+  # Feature add for #1031: Log information about the system in the nm log...
+  servicelogger.log('[INFO]:platform.python_version(): "' + 
+      str(platform.python_version())+'"')
+  servicelogger.log('[INFO]:platform.platform(): "' + 
+      str(platform.platform())+'"')
+
+  uname_logstring_prefix = '[INFO]:platform.uname(): '
+  # uname on Android only yields 'Linux', let's be more specific.
+  try:
+    import android
+    uname_logstring += 'Android / ' 
+  except ImportError:
+    pass
+  servicelogger.log(uname_logstring_prefix + '"' + str(platform.uname()) + '"')
+
+
+
+
 # lots of little things need to be initialized...   
 def main():
   global configuration
@@ -578,22 +602,7 @@ def main():
         servicelogger.log("[ERROR]:Another node manager process is running")
       return
 
-
-  servicelogger.log('[INFO]: This is Seattle release "' + version + "'") 
-
-  # Feature add for #1031: Log information about the system in the nm log...
-  servicelogger.log('[INFO]:platform.python_version(): "' + 
-      str(platform.python_version())+'"')
-  servicelogger.log('[INFO]:platform.platform(): "' + 
-      str(platform.platform())+'"')
-
-  # uname on Android only yields 'Linux', let's be more specific.
-  try:
-    import android
-    servicelogger.log('[INFO]:platform.uname(): Android / "' + 
-      str(platform.uname())+'"')
-  except ImportError:
-    servicelogger.log('[INFO]:platform.uname(): "'+str(platform.uname())+'"')
+  log_seattle_version_and_platform_info()
 
   # I'll grab the necessary information first...
   servicelogger.log("[INFO]:Loading config")
