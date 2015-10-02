@@ -587,28 +587,19 @@ def main():
 
   vesseldict = nmrequesthandler.initialize(myip, configuration['publickey'], version)
 
-  # Start accepter...
-  myname = start_accepter()
-
-  # Initialize the global node name inside node reset configuration dict
-  node_reset_config['name'] = myname
+  # Start accepter, store current node name.
+  # We do this here only for this thread, because if it is not running 
+  # already when we reach the following big `while` loop, a reset and re-
+  # init procedure will be triggered via node_reset_config['reset_accepter'], 
+  # and we might end up spinning resetting/reinitting.
+  # (The other threads (worker, advert, status) will be spawned from 
+  # within the loop with no side effects.)
+  node_reset_config['name'] = start_accepter()
   
-  #send our advertised name to the log
-  servicelogger.log('myname = ' + str(myname))
+  # Send our advertised name to the log
+  servicelogger.log('myname = ' + node_reset_config['name'])
 
-  # Start worker thread...
-  start_worker_thread(configuration['pollfrequency'])
-
-  # Start advert thread...
-  start_advert_thread(vesseldict, myname, configuration['publickey'])
-
-  # Start status thread...
-  start_status_thread(vesseldict, configuration['pollfrequency'])
-
-
-  # we should be all set up now.   
-
-  servicelogger.log("[INFO]:Started")
+  servicelogger.log("[INFO]:Starting")
 
   # I will count my iterations through the loop so that I can log a message
   # periodically.   This makes it clear I am alive.
@@ -617,12 +608,6 @@ def main():
 
   # BUG: Need to exit all when we're being upgraded
   while True:
-
-    # E.K Previous there was a check to ensure that the accepter
-    # thread was started.  There is no way to actually check this
-    # and this code was never executed, so i removed it completely
-
-    myname = node_reset_config['name']
 
     if not is_accepter_started():
       servicelogger.log("[WARN]:Accepter thread requires restart.")
@@ -634,7 +619,7 @@ def main():
 
     if should_start_waitable_thread('advert', nmadvertise.thread_name):
       servicelogger.log("[WARN]:Advert thread requires restart.")
-      start_advert_thread(vesseldict, myname, configuration['publickey'])
+      start_advert_thread(vesseldict, node_reset_config['name'], configuration['publickey'])
 
     if should_start_waitable_thread('status', nmstatusmonitor.thread_name):
       servicelogger.log("[WARN]:Status monitoring thread requires restart.")
@@ -675,15 +660,14 @@ def main():
 
         # Restart the advertisement thread
         node_reset_config['reset_advert'] = True
-        start_advert_thread(vesseldict, myname, configuration['publickey'])
+        start_advert_thread(vesseldict, node_reset_config['name'], configuration['publickey'])
 
 
     
     # If the reset accepter flag has been turned on, we call start_accepter
     # and update our name. 
     if node_reset_config['reset_accepter']:
-      myname = start_accepter()
-      node_reset_config['name'] = myname 
+      node_reset_config['name'] = start_accepter()
 
 
     time.sleep(configuration['pollfrequency'])
