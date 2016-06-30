@@ -27,10 +27,17 @@ import persist
 # used to do resource file parsing and math...
 import resourcemanipulation
 
-# Is this the same as nmrequesthandler.BadRequest?  (the expected type of 
-# exception)
+
+
 class BadRequest(Exception):
+  """
+  The current request to the nodemanager was "bad", e.g. it targeted 
+  a nonexistent vessel, tried an action incompatible with the vessel's 
+  current status, used invalid characters for filenames, etc.
+  """
   pass
+
+
 
 # used to check file names in addfiletovessel, retrievefilefromvessel, and
 # deletefileinvessel
