@@ -105,6 +105,7 @@ dy_import_module_symbols("rsa.r2py")
 dy_import_module_symbols("sha.r2py")
 dy_import_module_symbols("advertise.r2py")
 dy_import_module_symbols("sockettimeout.r2py")
+tcprelay = dy_import_module("tcprelay.r2py")
 
 # Overwrite log() so that Affix debug messages end up in the nodemanager's 
 # log file (nodemanager.old or .new in the service vessel directory)
@@ -120,11 +121,6 @@ def log(*args):
     servicelogger.log(logstring[:-1])
   else:
     servicelogger.log(logstring)
-
-
-affix_stack = dy_import_module("affix_stack.r2py")
-advertisepipe = dy_import_module("advertisepipe.r2py")
-
 
 
 # JAC: Fix for #1000: This needs to be after ALL repyhhelper calls to prevent 
@@ -269,57 +265,6 @@ def is_accepter_started():
 
 
 
-# Flags for whether to use Affix
-affix_enabled = True
-
-
-# Store the original Repy API calls.
-old_getmyip = getmyip
-old_listenforconnection = listenforconnection
-old_timeout_listenforconnection = timeout_listenforconnection
-
-
-def enable_affix(affix_string):
-  """
-  <Purpose>
-    Overload the listenforconnection() and getmyip() API call 
-    if Affix is enabled.
-
-  <Arguments>
-    None
-
-  <SideEffects>
-    Original listenforconnection() and getmyip() gets overwritten.
-
-  <Exceptions>
-    None
-  """
-  # If Affix is not enabled, we just return.
-  if not affix_enabled:
-    return
-
-  global timeout_listenforconnection
-  global getmyip
-
-  # Create my affix object and overwrite the listenforconnection
-  # and the getmyip call.
-  nodemanager_affix = affix_stack.AffixStack(affix_string)
-
-  # Create a new timeout_listenforconnection that wraps a normal
-  # Affix socket with timeout_server_socket.
-  def new_timeout_listenforconnection(localip, localport, timeout):
-    sockobj = nodemanager_affix.listenforconnection(localip, localport)
-    return timeout_server_socket(sockobj, timeout)
-
-  # Overload the two functionalities with Affix functionalities
-  # that will be used later on.
-  timeout_listenforconnection = new_timeout_listenforconnection
-  getmyip = nodemanager_affix.getmyip
-
-  servicelogger.log('[INFO] Nodemanager now using Affix string: ' + affix_string)
-
-
-
 def start_accepter():
   global accepter_thread
 
@@ -350,20 +295,30 @@ def start_accepter():
       # since this potentially avoids rebuilding the allowed IP 
       # cache for each possible port
       bind_ip = getmyip()
+      # Check if this is an RFC1918 "private" IPv4 address and thus
+      # likely not reachable from the public Internet.
+      is_private_ipv4_address = bind_ip.startswith("192.168.") or \
+          bind_ip.startswith("10.") or (bind_ip.startswith("172.") and
+          (16 <= int(bind_ip.split(".")[1]) <= 31))
 
       # Attempt to have the nodemanager listen on an available port.
       # Once it is able to listen, create a new thread and pass it the socket.
       # That new thread will be responsible for handling all of the incoming connections.     
       for possibleport in configuration['ports']:
         try:
-          # Use a Repy socket for listening. This lets us override 
-          # the listenforconnection function with a version using an 
-          # Affix stack easily; furthermore, we can transparently use 
-          # the Repy sockettimeout library to protect against malicious 
-          # clients that feed us endless data (or no data) to tie up 
-          # the connection.
           try:
-            serversocket = timeout_listenforconnection(bind_ip, possibleport, 10)
+            if is_private_ipv4_address:
+              for sourceport in range(63100, 63150):
+                try:
+                  possibleport, serversocket = tcprelay.relayedlisten(
+                      "192.86.139.96", sourceport, bind_ip, possibleport)
+                  break
+                except (AlreadyListeningError, RepyArgumentError,
+                    CleanupInProgressError):
+                pass
+            else:
+              serversocket = timeout_listenforconnection(bind_ip,
+                  possibleport, 10)
           except (AlreadyListeningError, DuplicateTupleError), e:
             # These are rather dull errors that will result in us 
             # trying a different port. Don't print a stack trace.
@@ -373,9 +328,9 @@ def start_accepter():
             continue
 
           # Assign the nodemanager name.
-          # We re-retrieve our address using getmyip as we may now be using
-          # a zenodotus name instead.
-          myname_port = str(getmyip()) + ":" + str(possibleport)
+          if is_private_ipv4_address:
+            myname_port = "NAT$"
+          myname_port += str(bind_ip) + ":" + str(possibleport)
 
           # If there is no error, we were able to successfully start listening.
           # Create the thread, and start it up!
@@ -569,17 +524,6 @@ def main():
                             + "modifying the crontab for the new 2009 " \
                             + "seattle crontab entry: " \
                             + exception_traceback_string)
-  
-
-
-  # Enable Affix and overload various Repy network API calls 
-  # with Affix-enabled calls.
-  # Use the node's publickey to generate a name for our node.
-  mypubkey = rsa_publickey_to_string(configuration['publickey']).replace(" ", "")
-  affix_stack_name = sha_hexhash(mypubkey)
-
-  enable_affix('(CoordinationAffix)(MakeMeHearAffix)(NamingAndResolverAffix,' + 
-      affix_stack_name + ')')
 
   # get the external IP address...
   myip = None
@@ -662,37 +606,35 @@ def main():
 
 
     # Check for IP address changes.
-    # When using Affix, the NamingAndResolverAffix takes over this.
-    if not affix_enabled:
-      current_ip = None
-      while True:
-        try:
-          current_ip = emulcomm.getmyip()
-        except Exception, e:
-          # If we aren't connected to the internet, emulcomm.getmyip() raises this:
-          if len(e.args) >= 1 and e.args[0] == "Cannot detect a connection to the Internet.":
-            # So we try again.
-            pass
-          else:
-            # It wasn't emulcomm.getmyip()'s exception. re-raise.
-            raise
+    current_ip = None
+    while True:
+      try:
+        current_ip = emulcomm.getmyip()
+      except Exception, e:
+        # If we aren't connected to the internet, emulcomm.getmyip() raises this:
+        if len(e.args) >= 1 and e.args[0] == "Cannot detect a connection to the Internet.":
+          # So we try again.
+          pass
         else:
-          # We succeeded in getting our external IP. Leave the loop.
-          break
-      time.sleep(0.1)
+          # It wasn't emulcomm.getmyip()'s exception. re-raise.
+          raise
+      else:
+        # We succeeded in getting our external IP. Leave the loop.
+        break
+    time.sleep(0.1)
 
-      # If ip has changed, then restart the advertisement and accepter threads.
-      if current_ip != myip:
-        servicelogger.log('[WARN]:Node IP has changed, it is ' + 
-          str(current_ip) + ' now (was ' + str(myip) + ').')
-        myip = current_ip
+    # If ip has changed, then restart the advertisement and accepter threads.
+    if current_ip != myip:
+      servicelogger.log('[WARN]:Node IP has changed, it is ' +
+        str(current_ip) + ' now (was ' + str(myip) + ').')
+      myip = current_ip
 
-        # Restart the accepter thread and update nodename in node_reset_config
-        node_reset_config['reset_accepter'] = True
+      # Restart the accepter thread and update nodename in node_reset_config
+      node_reset_config['reset_accepter'] = True
 
-        # Restart the advertisement thread
-        node_reset_config['reset_advert'] = True
-        start_advert_thread(vesseldict, myname, configuration['publickey'])
+      # Restart the advertisement thread
+      node_reset_config['reset_advert'] = True
+      start_advert_thread(vesseldict, myname, configuration['publickey'])
 
 
     
